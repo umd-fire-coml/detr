@@ -76,7 +76,7 @@ class HungarianMatcher(nn.Module):
         # out_prob is a long list of class vector probabilities for each bounding box, out shape: [bach_size * num_queries, num_classes]
         cost_class = -out_prob[:, tgt_ids]
 
-        # Compute the L1 cost between boxes
+        # Compute the L1 cost between boxes for each value in the bounding box
         cost_bbox = torch.cdist(out_bbox, tgt_bbox, p=1)
 
         # Compute the giou cost betwen boxes
@@ -84,10 +84,12 @@ class HungarianMatcher(nn.Module):
 
         # Final cost matrix
         C = self.cost_bbox * cost_bbox + self.cost_class * cost_class + self.cost_giou * cost_giou
-        # 
+        # reshape the cost of each bounding box back into shape [batch_size, num_queries, num_queries] 
         C = C.view(bs, num_queries, -1).cpu()
 
+        # get the number of boxes of each image in the ground truth
         sizes = [len(v["boxes"]) for v in targets]
+        # TODO: print shape of c[i]
         indices = [linear_sum_assignment(c[i]) for i, c in enumerate(C.split(sizes, -1))]
         return [(torch.as_tensor(i, dtype=torch.int64), torch.as_tensor(j, dtype=torch.int64)) for i, j in indices]
 
