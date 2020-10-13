@@ -73,6 +73,7 @@ class HungarianMatcher(nn.Module):
         # The 1 is a constant that doesn't change the matching, it can be ommitted.
         # Select the class probability at num_classes[tgt_ids]
         # Higher out_prob gets lower cost
+        # out_prob is a long list of class vector probabilities for each bounding box, out shape: [bach_size * num_queries, num_classes]
         cost_class = -out_prob[:, tgt_ids]
 
         # Compute the L1 cost between boxes
