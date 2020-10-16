@@ -74,9 +74,8 @@ class HungarianMatcher(nn.Module):
         # Select the class probability at num_classes[tgt_ids]
         # Higher out_prob gets lower cost
         # out_prob is a long list of class vector probabilities for each bounding box
-        # cost_class shape: [batch_size * num_queries, 1]
-        # len(tgt_ids) == len(out_prob)
-        # is it same as: cost_class = -[prob[tgt_id] for prob, tgt_id in zip(out_prob, tgt_ids)] ?
+        # cost_class shape: [batch_size * num_queries, len(tgt_ids]
+        # TODO: need intuitive and memory efficent implementation
         cost_class = -out_prob[:, tgt_ids]
 
         # Compute the L1 cost between boxes for each value in the bounding box
