@@ -63,9 +63,9 @@ class HungarianMatcher(nn.Module):
         out_bbox = outputs["pred_boxes"].flatten(0, 1)  
 
         # Also concat the target labels and boxes
-        # tgt_ids is a long list of labels for each bounding box, of shape [batch_size * num_queries, 1]
+        # tgt_ids is a long list of labels for each bounding box, of shape [batch_size * num_target_boxes, 1]
         tgt_ids = torch.cat([img["labels"] for img in targets])
-        # tgt_bbox is a long list of boxes for each bounding box, of shape [batch_size * num_queries, 4]
+        # tgt_bbox is a long list of boxes for each bounding box, of shape [batch_size * num_target_boxes, 4]
         tgt_bbox = torch.cat([v["boxes"] for v in targets])
 
         # Compute the classification cost. Contrary to the loss, we don't use the NLL,
@@ -73,7 +73,10 @@ class HungarianMatcher(nn.Module):
         # The 1 is a constant that doesn't change the matching, it can be ommitted.
         # Select the class probability at num_classes[tgt_ids]
         # Higher out_prob gets lower cost
-        # out_prob is a long list of class vector probabilities for each bounding box, out shape: [bach_size * num_queries, num_classes]
+        # out_prob is a long list of class vector probabilities for each bounding box
+        # cost_class shape: [batch_size * num_queries, 1]
+        # len(tgt_ids) == len(out_prob)
+        # is it same as: cost_class = -[prob[tgt_id] for prob, tgt_id in zip(out_prob, tgt_ids)] ?
         cost_class = -out_prob[:, tgt_ids]
 
         # Compute the L1 cost between boxes for each value in the bounding box
@@ -84,13 +87,16 @@ class HungarianMatcher(nn.Module):
 
         # Final cost matrix
         C = self.cost_bbox * cost_bbox + self.cost_class * cost_class + self.cost_giou * cost_giou
-        # reshape the cost of each bounding box back into shape [batch_size, num_queries, num_queries] 
+        # reshape the cost of each bounding box back into shape [batch_size, num_queries, num_targets_in_each_img]
+        # how 
         C = C.view(bs, num_queries, -1).cpu()
 
         # get the number of boxes of each image in the ground truth
-        sizes = [len(v["boxes"]) for v in targets]
-        # TODO: print shape of c[i]
-        indices = [linear_sum_assignment(c[i]) for i, c in enumerate(C.split(sizes, -1))]
+        num_targets_in_each_img = [len(img["boxes"]) for img in targets]
+        # C.shape is [bs, num_queries, sum(num_targets_in_each_img)] and c.shape is [bs, num_queries, num_targets_in_imgs[i]]
+        # c[i].shape is [num_queries, sizes[i]]
+        # TODO: print shape of 
+        indices = [linear_sum_assignment(c[i]) for i, c in enumerate(C.split(num_targets_in_imgs, -1))]
         return [(torch.as_tensor(i, dtype=torch.int64), torch.as_tensor(j, dtype=torch.int64)) for i, j in indices]
 
 
