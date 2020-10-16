@@ -1,0 +1,12 @@
+name: detr
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.7
+  - pytorch
+  - torchvision
+  - cython
+  - scipy
+  - pip
