@@ -81,28 +81,28 @@ class HungarianMatcher(nn.Module):
         
         list_img_pred_probs = [probs for probs in outputs["pred_logits"]]
         list_img_target_classes = [img["labels"] for img in targets]
-        list_img_cost_class =        
-            [self.cost_class * -queries_probs[:, target_classes] 
-                for queries_probs, target_classes in zip(list_img_pred_probs, list_of_img_target_classes)] 
+        list_img_cost_class = [
+            self.cost_class * -queries_probs[:, target_classes]
+            for queries_probs, target_classes in zip(list_img_pred_probs, list_of_img_target_classes)] 
 
         # Compute the L1 cost between boxes for each value in the bounding box
         list_img_pred_bboxes = [bboxes for bboxes in outputs["pred_boxes"]]
         list_img_target_bboxes = [img["boxes"] for img in targets]
-        list_img_cost_bboxes = 
-            [self.cost_bbox * torch.cdist(pred_bboxes, target_bboxes, p=1) 
-                for pred_bboxes, target_bboxes in zip(list_img_pred_bboxes, list_img_target_bboxes)]
+        list_img_cost_bboxes = [
+            self.cost_bbox * torch.cdist(pred_bboxes, target_bboxes, p=1)
+            for pred_bboxes, target_bboxes in zip(list_img_pred_bboxes, list_img_target_bboxes)]
         #cost_bbox = torch.cdist(out_bbox, tgt_bbox, p=1)
 
         # Compute the giou cost betwen boxes
-        list_img_cost_giou = 
-            [self.cost_giou * -generalized_box_iou(box_cxcywh_to_xyxy(pred_bboxes), box_cxcywh_to_xyxy(target_bboxes)) 
-                for pred_bboxes, target_bboxes in zip(list_img_pred_bboxes, list_img_target_bboxes)]
+        list_img_cost_giou = [
+            self.cost_giou * -generalized_box_iou(box_cxcywh_to_xyxy(pred_bboxes), box_cxcywh_to_xyxy(target_bboxes))
+            for pred_bboxes, target_bboxes in zip(list_img_pred_bboxes, list_img_target_bboxes)]
         #cost_giou = -generalized_box_iou(box_cxcywh_to_xyxy(out_bbox), box_cxcywh_to_xyxy(tgt_bbox))
         
         # Final cost matrix
-        list_img_cost_matrix =
-            [cost_class + cost_bboxes + cost_giou 
-                for cost_class, cost_bboxes, cost_giou in zip(list_img_cost_class, list_img_cost_bboxes, list_img_cost_giou)]
+        list_img_cost_matrix = [
+            cost_class + cost_bboxes + cost_giou
+            for cost_class, cost_bboxes, cost_giou in zip(list_img_cost_class, list_img_cost_bboxes, list_img_cost_giou)]
         # Final cost matrix
         # C = self.cost_bbox * cost_bbox + self.cost_class * cost_class + self.cost_giou * cost_giou
         # reshape the cost of each bounding box back into shape [batch_size, num_queries, total_num_targets_in_img_batch]
