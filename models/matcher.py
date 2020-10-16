@@ -83,7 +83,7 @@ class HungarianMatcher(nn.Module):
         list_img_target_classes = [img["labels"] for img in targets]
         list_img_cost_class = [
             self.cost_class * -queries_probs[:, target_classes]
-            for queries_probs, target_classes in zip(list_img_pred_probs, list_of_img_target_classes)] 
+            for queries_probs, target_classes in zip(list_img_pred_probs, list_img_target_classes)] 
 
         # Compute the L1 cost between boxes for each value in the bounding box
         list_img_pred_bboxes = [bboxes for bboxes in outputs["pred_boxes"]]
