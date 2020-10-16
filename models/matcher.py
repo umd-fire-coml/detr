@@ -76,27 +76,55 @@ class HungarianMatcher(nn.Module):
         # out_prob is a long list of class vector probabilities for each bounding box
         # cost_class shape: [batch_size * num_queries, len(tgt_ids)]
         # TODO: need intuitive, not wasting computation and memory, since only 1 out of bs will be used.
-        cost_class = -out_prob[:, tgt_ids]
+        #cost_class = -out_prob[:, tgt_ids]
+        
+        
+        list_img_pred_probs = [probs for probs in outputs["pred_logits"]]
+        list_img_target_classes = [img["labels"] for img in targets]
+        list_img_cost_class =        
+            [self.cost_class * -queries_probs[:, target_classes] 
+                for queries_probs, target_classes in zip(list_img_pred_probs, list_of_img_target_classes)] 
 
         # Compute the L1 cost between boxes for each value in the bounding box
-        cost_bbox = torch.cdist(out_bbox, tgt_bbox, p=1)
+        list_img_pred_bboxes = [bboxes for bboxes in outputs["pred_boxes"]]
+        list_img_target_bboxes = [img["boxes"] for img in targets]
+        list_img_cost_bboxes = 
+            [self.cost_bbox * torch.cdist(pred_bboxes, target_bboxes, p=1) 
+                for pred_bboxes, target_bboxes in zip(list_img_pred_bboxes, list_img_target_bboxes)]
+        #cost_bbox = torch.cdist(out_bbox, tgt_bbox, p=1)
 
         # Compute the giou cost betwen boxes
-        cost_giou = -generalized_box_iou(box_cxcywh_to_xyxy(out_bbox), box_cxcywh_to_xyxy(tgt_bbox))
-
+        list_img_cost_giou = 
+            [self.cost_giou * -generalized_box_iou(box_cxcywh_to_xyxy(pred_bboxes), box_cxcywh_to_xyxy(target_bboxes)) 
+                for pred_bboxes, target_bboxes in zip(list_img_pred_bboxes, list_img_target_bboxes)]
+        #cost_giou = -generalized_box_iou(box_cxcywh_to_xyxy(out_bbox), box_cxcywh_to_xyxy(tgt_bbox))
+        
         # Final cost matrix
-        C = self.cost_bbox * cost_bbox + self.cost_class * cost_class + self.cost_giou * cost_giou
-        # reshape the cost of each bounding box back into shape [batch_size, num_queries, num_targets_in_each_img]
-        # how 
-        C = C.view(bs, num_queries, -1).cpu()
+        list_img_cost_matrix =
+            [cost_class + cost_bboxes + cost_giou 
+                for cost_class, cost_bboxes, cost_giou in zip(list_img_cost_class, list_img_cost_bboxes, list_img_cost_giou)]
+        # Final cost matrix
+        # C = self.cost_bbox * cost_bbox + self.cost_class * cost_class + self.cost_giou * cost_giou
+        # reshape the cost of each bounding box back into shape [batch_size, num_queries, total_num_targets_in_img_batch]
+        # C = C.view(bs, num_queries, -1).cpu()
+        
+        # get best matching indices
+        list_img_matching_query_target = [linear_sum_assignment(cost_matrix) for cost_matrix in list_img_cost_matrix]
+        return [(torch.as_tensor(i, dtype=torch.int64), torch.as_tensor(j, dtype=torch.int64)) for i, j in list_img_matching_query_target]
 
         # get the number of boxes of each image in the ground truth
-        num_targets_in_each_img = [len(img["boxes"]) for img in targets]
+        # num_targets_in_each_img = [len(img["boxes"]) for img in targets]
+        
+        # we need a list of cost matrix of each img of shape [num_queries, targets[i]]
+        
         # C.shape is [bs, num_queries, sum(num_targets_in_each_img)] and c.shape is [bs, num_queries, num_targets_in_imgs[i]]
         # c[i].shape is [num_queries, sizes[i]]
-        # TODO: print shape of 
-        indices = [linear_sum_assignment(c[i]) for i, c in enumerate(C.split(num_targets_in_imgs, -1))]
-        return [(torch.as_tensor(i, dtype=torch.int64), torch.as_tensor(j, dtype=torch.int64)) for i, j in indices]
+        # indices is a list of tuples (row_ind, col_ind) of length batch_size, each representing one image
+        # where row_ind is a list ids of length num_targets, col_ind is a list ids of length num_targets
+        # indices = [linear_sum_assignment(c[i]) for i, c in enumerate(C.split(num_targets_in_imgs, -1))]
+        
+        # convert numpy array into torch tensor
+        # return [(torch.as_tensor(i, dtype=torch.int64), torch.as_tensor(j, dtype=torch.int64)) for i, j in indices]
 
 
 def build_matcher(args):
