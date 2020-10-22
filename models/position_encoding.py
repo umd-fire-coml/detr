@@ -14,6 +14,7 @@ class PositionEmbeddingSine(nn.Module):
     This is a more standard version of the position embedding, very similar to the one
     used by the Attention is all you need paper, generalized to work on images.
     """
+    # num_pos_feats is 128 from default user input
     def __init__(self, num_pos_feats=64, temperature=10000, normalize=False, scale=None):
         super().__init__()
         self.num_pos_feats = num_pos_feats
@@ -26,11 +27,16 @@ class PositionEmbeddingSine(nn.Module):
         self.scale = scale
 
     def forward(self, tensor_list: NestedTensor):
+        # x is the image tensors
         x = tensor_list.tensors
+        # mask is the image masks, at first, masks have zeros at the image part, and ones at the padded parts.
         mask = tensor_list.mask
         assert mask is not None
+        # flip the mask values
         not_mask = ~mask
+        # accumulate the mask values on y-axis, for each mask
         y_embed = not_mask.cumsum(1, dtype=torch.float32)
+        # accumulate the mask values on x-axis, for each mask
         x_embed = not_mask.cumsum(2, dtype=torch.float32)
         if self.normalize:
             eps = 1e-6
@@ -77,9 +83,13 @@ class PositionEmbeddingLearned(nn.Module):
 
 
 def build_position_encoding(args):
+    # args.hidden_dim is the Size of the embeddings (dimension of the transformer), default is 256
+    # N_steps default is 256 // 2 = 128
     N_steps = args.hidden_dim // 2
+    
+    # args.position_embedding is the Type of positional embedding to use on top of the image features
+    # default is sine
     if args.position_embedding in ('v2', 'sine'):
-        # TODO find a better way of exposing other arguments
         position_embedding = PositionEmbeddingSine(N_steps, normalize=True)
     elif args.position_embedding in ('v3', 'learned'):
         position_embedding = PositionEmbeddingLearned(N_steps)
