@@ -32,25 +32,30 @@ class PositionEmbeddingSine(nn.Module):
         # mask is the image masks, at first, masks have zeros at the image part, and ones at the padded parts.
         mask = tensor_list.mask
         assert mask is not None
-        # flip the mask values
+        # flip the mask values, ones at the image portions, and zeros at the padded portions.
         not_mask = ~mask
-        # accumulate the mask values on y-axis, for each mask
+        # accumulate the image portion of mask values on y-axis, for each mask
         y_embed = not_mask.cumsum(1, dtype=torch.float32)
-        # accumulate the mask values on x-axis, for each mask
+        # accumulate the image portion of mask values on x-axis, for each mask
         x_embed = not_mask.cumsum(2, dtype=torch.float32)
         if self.normalize:
             eps = 1e-6
-            y_embed = y_embed / (y_embed[:, -1:, :] + eps) * self.scale
-            x_embed = x_embed / (x_embed[:, :, -1:] + eps) * self.scale
+            y_embed = y_embed / (y_embed[:, -1:, :] + eps) * self.scale  # scale (min-max) values to between 0 to tau
+            x_embed = x_embed / (x_embed[:, :, -1:] + eps) * self.scale  # 0 to tau because of sine and cosine later
 
-        dim_t = torch.arange(self.num_pos_feats, dtype=torch.float32, device=x.device)
-        dim_t = self.temperature ** (2 * (dim_t // 2) / self.num_pos_feats)
+        dim_t = torch.arange(self.num_pos_feats, dtype=torch.float32, device=x.device)  # outputs a range from 0 to 127
+        dim_t = self.temperature ** (2 * (dim_t // 2) / self.num_pos_feats)  # output a range from 1 to 10000^1
 
-        pos_x = x_embed[:, :, :, None] / dim_t
-        pos_y = y_embed[:, :, :, None] / dim_t
-        pos_x = torch.stack((pos_x[:, :, :, 0::2].sin(), pos_x[:, :, :, 1::2].cos()), dim=4).flatten(3)
+        pos_x = x_embed[:, :, :, None] / dim_t  # create the dim positional embedding (128) for each pixel in the mask
+        pos_y = y_embed[:, :, :, None] / dim_t  # output shape is (b, h, w, 128) from (b, h, w)
+        # create the interleaved positional encoding 
+        # pos_x output shape is (b, h, w, 128)
+        pos_x = torch.stack((pos_x[:, :, :, 0::2].sin(), pos_x[:, :, :, 1::2].cos()), dim=4).flatten(3)  
         pos_y = torch.stack((pos_y[:, :, :, 0::2].sin(), pos_y[:, :, :, 1::2].cos()), dim=4).flatten(3)
-        pos = torch.cat((pos_y, pos_x), dim=3).permute(0, 3, 1, 2)
+
+        # concat the pos_x and pos_y embedding, output shape is 
+        # rearrange the dimensions to (batch_size, embedding_size, h, w)
+        pos = torch.cat((pos_y, pos_x), dim=3).permute(0, 3, 1, 2)  
         return pos
 
 
