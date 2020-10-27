@@ -66,16 +66,18 @@ class BackboneBase(nn.Module):
             return_layers = {"layer1": "0", "layer2": "1", "layer3": "2", "layer4": "3"}
         else:
             return_layers = {'layer4': "0"}
+        # get the intermediate layers from the backbone model
         self.body = IntermediateLayerGetter(backbone, return_layers=return_layers)
         self.num_channels = num_channels
 
     def forward(self, tensor_list: NestedTensor):
-        xs = self.body(tensor_list.tensors)
-        out: Dict[str, NestedTensor] = {}
-        for name, x in xs.items():
-            m = tensor_list.mask
+        xs = self.body(tensor_list.tensors)  # get the tensor (image features) from intermediate layers
+        out: Dict[str, NestedTensor] = {} 
+        for name, x in xs.items():  # for each intermediate layer tensor
+            m = tensor_list.mask 
             assert m is not None
-            mask = F.interpolate(m[None].float(), size=x.shape[-2:]).to(torch.bool)[0]
+            # scale the mask to the size of the intermediate layer tensor
+            mask = F.interpolate(m[None].float(), size=x.shape[-2:]).to(torch.bool)[0]  
             out[name] = NestedTensor(x, mask)
         return out
 
@@ -86,10 +88,14 @@ class Backbone(BackboneBase):
                  train_backbone: bool,
                  return_interm_layers: bool,
                  dilation: bool):
+        # get the function with name of backbone model, i.e. call the constructor,
+        # and replace some constructor inputs, i.e. dilation flag, whether to use pretrained weights, 
+        # replace normalization layers within to fix nan bug
         backbone = getattr(torchvision.models, name)(
             replace_stride_with_dilation=[False, False, dilation],
             pretrained=is_main_process(), norm_layer=FrozenBatchNorm2d)
         num_channels = 512 if name in ('resnet18', 'resnet34') else 2048
+        # call parent init to return interim layers for interim mask output 
         super().__init__(backbone, train_backbone, num_channels, return_interm_layers)
 
 
@@ -98,14 +104,14 @@ class Joiner(nn.Sequential):
         super().__init__(backbone, position_embedding)
 
     def forward(self, tensor_list: NestedTensor):
+        # extract the backbone tensors
         xs = self[0](tensor_list)
         out: List[NestedTensor] = []
         pos = []
-        for name, x in xs.items():
+        for name, x in xs.items():  # for each image feature in batch
             out.append(x)
-            # position encoding
+            # extract the position encoding and convert to same dtype as backbone
             pos.append(self[1](x).to(x.tensors.dtype))
-
         return out, pos
 
 
@@ -113,7 +119,9 @@ def build_backbone(args):
     position_embedding = build_position_encoding(args)
     train_backbone = args.lr_backbone > 0
     return_interm_layers = args.masks
+    # create the backbone with the parameters
     backbone = Backbone(args.backbone, train_backbone, return_interm_layers, args.dilation)
+    # output the backbone and position_embedding
     model = Joiner(backbone, position_embedding)
     model.num_channels = backbone.num_channels
     return model
