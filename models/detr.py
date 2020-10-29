@@ -317,6 +317,7 @@ def build(args):
         num_classes = 250
     device = torch.device(args.device)
 
+    # backbone outputs the image features with the masks, and the positional encodings
     backbone = build_backbone(args)
 
     transformer = build_transformer(args)
