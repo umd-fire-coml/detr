@@ -101,6 +101,7 @@ class Backbone(BackboneBase):
 
 class Joiner(nn.Sequential):
     def __init__(self, backbone, position_embedding):
+        # init with first layer as backbone, second layer as positional_embedding
         super().__init__(backbone, position_embedding)
 
     def forward(self, tensor_list: NestedTensor):
@@ -109,9 +110,11 @@ class Joiner(nn.Sequential):
         out: List[NestedTensor] = []
         pos = []
         for name, x in xs.items():  # for each image feature in batch
+            # put the image feature and the mask in the out list
             out.append(x)
-            # extract the position encoding and convert to same dtype as backbone
+            # compute the position encoding of input and convert to same data type as backbone
             pos.append(self[1](x).to(x.tensors.dtype))
+        # output both the image feature with the mask, and the position encoding
         return out, pos
 
 
